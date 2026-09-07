@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Block Short</string>
+    <string name="accessibility_service_label">Block Short protection</string>
+    <string name="accessibility_service_description">Uses on-screen labels and scroll events to detect short-form feeds, count feed swipes, and show your chosen intervention. Block Short does not save or transmit messages.</string>
+</resources>
