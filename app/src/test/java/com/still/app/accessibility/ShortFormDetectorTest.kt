@@ -61,6 +61,44 @@ class ShortFormDetectorTest {
     }
 
     @Test
+    fun instagramViewerTriggersBeforeSelectedTabStateArrives() {
+        val result = ShortFormDetector.detect(
+            SupportedApp.INSTAGRAM,
+            labels = setOf("com.instagram.android:id/clips_viewer", "Like"),
+        )
+
+        assertTrue(result.isShortFormFeed)
+    }
+
+    @Test
+    fun instagramStoryViewerNeverTriggersEvenWithStaleReelsSelection() {
+        val result = ShortFormDetector.detect(
+            SupportedApp.INSTAGRAM,
+            labels = setOf(
+                "com.instagram.android:id/reels_viewer",
+                "com.instagram.android:id/story_progress",
+                "Story by Alex",
+                "Like",
+                "Comment",
+            ),
+            selectedLabels = setOf("Reels"),
+        )
+
+        assertFalse(result.isShortFormFeed)
+    }
+
+    @Test
+    fun ambiguousSingularReelViewerUsedByStoriesDoesNotTrigger() {
+        val result = ShortFormDetector.detect(
+            SupportedApp.INSTAGRAM,
+            labels = setOf("com.instagram.android:id/reel_viewer", "Like", "Comment"),
+            selectedLabels = setOf("Reels"),
+        )
+
+        assertFalse(result.isShortFormFeed)
+    }
+
+    @Test
     fun recycledViewerIdOnInstagramHomeDoesNotTrigger() {
         val result = ShortFormDetector.detect(
             SupportedApp.INSTAGRAM,

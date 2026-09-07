@@ -50,7 +50,10 @@ class StillAccessibilityService : AccessibilityService() {
                     removeOverlayNow()
                     return
                 }
-            } else if (foregroundPackage !in owner.packageNames) {
+            } else if (
+                foregroundPackage != this@StillAccessibilityService.packageName &&
+                foregroundPackage !in owner.packageNames
+            ) {
                 removeOverlayNow()
                 return
             } else {
@@ -63,6 +66,7 @@ class StillAccessibilityService : AccessibilityService() {
     private var overlay: View? = null
     private var overlayOwner: SupportedApp? = null
     private var foregroundUnknownSince = 0L
+    private var feedExitedForIntervention = false
     private var countdown: CountDownTimer? = null
     private var settingsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var sessionApp: SupportedApp? = null
@@ -111,6 +115,9 @@ class StillAccessibilityService : AccessibilityService() {
         if (now < suppressInterventionsUntil) return
         val result = ShortFormDetector.detect(app, rootInActiveWindow)
         if (!result.isShortFormFeed) {
+            // The feed is intentionally exited before an intervention so its
+            // video and audio stop. Keep the resulting choice screen visible.
+            if (overlay != null && feedExitedForIntervention) return
             // Accessibility snapshots briefly alternate while Instagram lays
             // out video controls. Only hide after the non-Reels state remains
             // stable; a valid Reels event cancels this pending removal.
@@ -187,6 +194,7 @@ class StillAccessibilityService : AccessibilityService() {
         val messages = InterventionMessages.hard
         val message = messages[LocalDate.now().dayOfYear % messages.size]
         repository.recordBlock()
+        exitDetectedFeed()
         showOverlay(
             app = app,
             message = message,
@@ -202,6 +210,7 @@ class StillAccessibilityService : AccessibilityService() {
     private fun showLimitIntervention(app: SupportedApp) {
         if (overlay != null) return
         repository.recordBlock()
+        exitDetectedFeed()
         showOverlay(
             app = app,
             message = InterventionMessages.limit,
@@ -216,6 +225,7 @@ class StillAccessibilityService : AccessibilityService() {
 
     private fun showExtensionFriction(app: SupportedApp, hardMode: Boolean) {
         dismissOverlay()
+        feedExitedForIntervention = true
         val root = createOverlayShell(InterventionMessages.extension)
         val actionArea = root.getChildAt(root.childCount - 1) as LinearLayout
 
@@ -379,8 +389,7 @@ class StillAccessibilityService : AccessibilityService() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START }
@@ -393,6 +402,14 @@ class StillAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(overlayScopeWatchdog)
             mainHandler.postDelayed(overlayScopeWatchdog, OVERLAY_SCOPE_CHECK_MS)
         }
+    }
+
+    private fun exitDetectedFeed() {
+        feedExitedForIntervention = true
+        // Covering another app does not pause its media. Leaving the detected
+        // feed first reliably stops playback without changing global volume or
+        // requesting broader media-control permissions.
+        performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
     private fun exitApp() {
@@ -490,6 +507,7 @@ class StillAccessibilityService : AccessibilityService() {
         overlay = null
         overlayOwner = null
         foregroundUnknownSince = 0L
+        feedExitedForIntervention = false
     }
 
     private fun matchWidthParams(top: Int = 0) = LinearLayout.LayoutParams(

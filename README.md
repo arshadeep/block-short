@@ -31,7 +31,7 @@ The project uses Android Gradle Plugin 9.3.0, Gradle 9.5.0, built-in Kotlin, and
 
 The Accessibility Service is package-scoped to Instagram, YouTube, and both global TikTok package IDs. Block Short looks for combinations of visible accessibility labels (for example, a short-form section label plus feed controls). A lone **Reels** or **Shorts** navigation label is intentionally insufficient. This reduces false positives and keeps messaging usable.
 
-The intervention overlay is owned by the detected social app and is checked against the foreground window while visible. It is removed when the user leaves that app, changes to a non-short-form screen, disables protection, or removes that app from protection.
+When a limit is reached, Block Short first exits the detected feed so video and audio stop, then shows the intervention. The intervention is owned by that social app and is removed if the user leaves the app, disables protection, or removes the app from protection.
 
 Social apps change their accessibility trees frequently. Before release, validate the detector against current app versions and add localized label sets. The detector logic is isolated in `ShortFormDetector.kt` and has pure unit tests.
 

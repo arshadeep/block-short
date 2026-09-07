@@ -57,19 +57,27 @@ object ShortFormDetector {
         val score = when (app) {
             SupportedApp.INSTAGRAM -> {
                 // Instagram Home contains a Reels navigation label and the same post
-                // controls as Reels. Instagram's selected-state reporting is not
-                // reliable enough to distinguish Home, so only full-screen viewer
-                // resource ids are accepted as Reels context.
-                val hasViewerId = contains("clips_viewer") ||
-                    contains("reels_viewer") ||
-                    contains("reel_viewer")
-                val reelsTabDirectlySelected = selected.any {
-                    it == "reels" || it.startsWith("reels,") || ("reels" in it && "tab" in it)
+                // controls as Reels. Stories have historically used singular
+                // "reel_viewer" ids internally, so those ambiguous ids are never
+                // accepted as evidence for the Reels product surface.
+                val hasStoryContext = normalized.any {
+                    "story_viewer" in it ||
+                        "stories_viewer" in it ||
+                        "story_progress" in it ||
+                        it == "stories" ||
+                        it.startsWith("story by ")
                 }
+                val hasViewerId = contains("clips_viewer") ||
+                    contains("clips_video") ||
+                    contains("reels_viewer")
                 val homeTabDirectlySelected = selected.any {
                     it == "home" || it.startsWith("home,") || ("tab" in it && "home" in it)
                 }
-                val reelContext = hasViewerId && reelsTabDirectlySelected && !homeTabDirectlySelected
+                // Viewer ids appear before Instagram reliably marks the Reels tab
+                // selected. Acting on the strong viewer id avoids a late block.
+                val reelContext = hasViewerId &&
+                    !hasStoryContext &&
+                    !homeTabDirectlySelected
                 var value = if (reelContext) 4 else 0
                 if (contains("like")) value += 1
                 if (contains("comment")) value += 1
