@@ -2,7 +2,6 @@ package com.still.app.accessibility
 
 import com.still.app.domain.SupportedApp
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -39,14 +38,38 @@ class ShortFormDetectorTest {
     }
 
     @Test
-    fun selectedInstagramReelsTabWithControlsDoesNotTriggerWithoutViewer() {
+    fun selectedInstagramReelsTabWithControlsTriggersWithoutViewerId() {
         val result = ShortFormDetector.detect(
             SupportedApp.INSTAGRAM,
             labels = setOf("Home", "Reels", "Like", "Comment", "Share"),
             selectedLabels = setOf("Reels"),
         )
 
-        assertFalse(result.isShortFormFeed)
+        assertTrue(result.isShortFormFeed)
+    }
+
+    @Test
+    fun selectedReelsTabWithoutPlaybackControlsDoesNotTrigger() {
+        assertFalse(ShortFormDetector.detect(SupportedApp.INSTAGRAM,
+            setOf("Home", "Reels", "Original audio"), setOf("Reels")).isShortFormFeed)
+    }
+
+    @Test
+    fun reelsViewerLayoutWorksWithoutIdsOrSelection() {
+        assertTrue(ShortFormDetector.detect(SupportedApp.INSTAGRAM,
+            setOf("Reels", "Like", "Comments", "Send"),
+            hasReelsViewerLayout = true).isShortFormFeed)
+    }
+
+    @Test
+    fun storyAndInboxStillVetoBothFallbacks() {
+        for (safeScreen in listOf("Story by Alex", "Search or ask Meta AI", "Edit profile", "Your story", "Notifications")) {
+            val result = ShortFormDetector.detect(SupportedApp.INSTAGRAM,
+                setOf("Reels", "Like", "Comment", "Share", safeScreen), setOf("Reels"),
+                hasReelsViewerLayout = true)
+            assertFalse(safeScreen, result.isShortFormFeed)
+            assertTrue(safeScreen, result.isKnownNonFeed)
+        }
     }
 
     @Test
@@ -110,93 +133,75 @@ class ShortFormDetectorTest {
     }
 
     @Test
-    fun differentReelContentProducesDifferentFingerprint() {
-        val first = ShortFormDetector.detect(
+    fun sharedVideoComponentDoesNotIdentifyReels() {
+        for (id in listOf("clips_video", "clips_video_container", "clips_video_view")) {
+            assertFalse(id, ShortFormDetector.detect(
+                SupportedApp.INSTAGRAM,
+                setOf("com.instagram.android:id/$id", "Like", "Comment", "Original audio"),
+            ).isShortFormFeed)
+        }
+    }
+
+    @Test
+    fun permittedInstagramScreensVetoRetainedReelsViewer() {
+        // Modeled after the visible screens in the recording, not device tree dumps.
+        val screenMarkers = listOf(
+            "Your story", "Notifications", "Edit profile", "Share profile",
+            "Search or ask Meta AI", "com.instagram.android:id/direct_inbox",
+            "com.instagram.android:id/direct_thread_recycler_view",
+            "com.instagram.android:id/profile_header", "com.instagram.android:id/profile_grid",
+            "com.instagram.android:id/feed_timeline", "com.instagram.android:id/story_progress",
+            "com.instagram.android:id/reel_viewer",
+        )
+        for (screen in screenMarkers) {
+            assertFalse(screen, ShortFormDetector.detect(
+                SupportedApp.INSTAGRAM,
+                setOf("com.instagram.android:id/clips_viewer", "Like", "Comment", screen),
+            ).isShortFormFeed)
+        }
+    }
+
+    @Test
+    fun storyContainingSharedReelDoesNotTrigger() {
+        assertFalse(ShortFormDetector.detect(
             SupportedApp.INSTAGRAM,
-            labels = setOf("Reels", "Like", "Comment", "@alex", "First caption"),
-            selectedLabels = setOf("Reels"),
-        )
-        val second = ShortFormDetector.detect(
+            setOf("com.instagram.android:id/clips_viewer", "Like", "Send message", "Watch full reel"),
+        ).isShortFormFeed)
+    }
+
+    @Test
+    fun selectedPermittedTabVetoesRetainedViewer() {
+        for (tab in listOf("Profile", "Search", "Explore", "Inbox", "Direct", "Home, tab 1 of 5")) {
+            assertFalse(tab, ShortFormDetector.detect(
+                SupportedApp.INSTAGRAM,
+                setOf("com.instagram.android:id/clips_viewer", "Like", "Comment"),
+                selectedLabels = setOf(tab),
+            ).isShortFormFeed)
+        }
+    }
+
+    @Test
+    fun fullScreenReelOpenedOutsideReelsTabStillTriggers() {
+        assertTrue(ShortFormDetector.detect(
             SupportedApp.INSTAGRAM,
-            labels = setOf("Reels", "Like", "Comment", "@sam", "Second caption"),
-            selectedLabels = setOf("Reels"),
-        )
-
-        assertNotEquals(first.contentFingerprint, second.contentFingerprint)
+            setOf("com.instagram.android:id/clips_viewer_container", "Like", "Comment"),
+        ).isShortFormFeed)
     }
 
     @Test
-    fun youtubeLongFormControlsDoNotTrigger() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.YOUTUBE,
-            setOf("Like this video", "Comments", "Subscribe"),
-        )
-
-        assertFalse(result.isShortFormFeed)
+    fun notSelectedAndUnselectedAreNotSelectionEvidence() {
+        assertFalse(ShortFormDetector.stateSaysSelected("Not selected"))
+        assertFalse(ShortFormDetector.stateSaysSelected("Unselected"))
+        assertFalse(ShortFormDetector.stateSaysSelected(null))
+        assertTrue(ShortFormDetector.stateSaysSelected("Selected"))
+        assertTrue(ShortFormDetector.stateSaysSelected("Selected, tab 2 of 5"))
     }
 
     @Test
-    fun youtubeBottomNavigationAndLongFormControlsDoNotTrigger() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.YOUTUBE,
-            labels = setOf("Home", "Shorts", "Like this video", "Comments", "Subscribe"),
-            selectedLabels = setOf("Home"),
-        )
-
-        assertFalse(result.isShortFormFeed)
-    }
-
-    @Test
-    fun selectedYoutubeShortsWithControlsTriggers() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.YOUTUBE,
-            labels = setOf("Home", "Shorts", "Like this video", "Comments"),
-            selectedLabels = setOf("Shorts"),
-        )
-
-        assertTrue(result.isShortFormFeed)
-    }
-
-    @Test
-    fun youtubeShortsViewerWithControlsTriggersWithoutSelectedTab() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.YOUTUBE,
-            labels = setOf(
-                "com.google.android.youtube:id/reel_watch_player",
-                "Like this video",
-            ),
-        )
-
-        assertTrue(result.isShortFormFeed)
-    }
-
-    @Test
-    fun tiktokInboxDoesNotTrigger() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.TIKTOK,
-            setOf("Inbox", "Messages", "Following"),
-        )
-
-        assertFalse(result.isShortFormFeed)
-    }
-
-    @Test
-    fun tiktokProfileFollowingCountDoesNotTrigger() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.TIKTOK,
-            setOf("Profile", "123 Following", "Like", "Share"),
-        )
-
-        assertFalse(result.isShortFormFeed)
-    }
-
-    @Test
-    fun tiktokForYouFeedWithControlsTriggers() {
-        val result = ShortFormDetector.detect(
-            SupportedApp.TIKTOK,
-            setOf("For You", "Like", "Comment"),
-        )
-
-        assertTrue(result.isShortFormFeed)
+    fun onlyInstagramIsSupported() {
+        assertTrue(SupportedApp.fromPackage("com.instagram.android") == SupportedApp.INSTAGRAM)
+        for (other in listOf("com.google.android.youtube", "com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.still.app")) {
+            assertTrue(SupportedApp.fromPackage(other) == null)
+        }
     }
 }

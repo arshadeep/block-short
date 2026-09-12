@@ -1,52 +1,38 @@
 # Block Short
 
-Block Short is a native Android wellbeing app that interrupts short-form feeds without blocking the useful parts of social apps. Instagram messaging, regular YouTube, and TikTok inboxes remain available; Reels, Shorts, and TikTok's video feed receive the chosen intervention.
+A minimal Android app for blocking Instagram Reels.
 
-## V0 features
+## First version
 
-- **Hard Mode:** blocks a detected short-form feed immediately, with a research-gated five/ten/twenty-scroll override.
-- **Soft Mode:** counts feed swipes, warns at three/two/one remaining, and pauses at the configured limit.
-- **Optional windows:** independently toggle Morning (6am–12pm), Afternoon (12pm–6pm), and Night (10pm–7am); with every window off, protection stays active all day.
-- **Adaptive-limit preview:** clearly marked future Fitbit, smartwatch, and calendar connections show how limits could eventually respond to sleep, activity, and commitments.
-- **Message-persona preview:** V0 uses an original chaotic, fourth-wall-breaking voice; future controls preview Gentle, Coach, and Chaotic personas.
-- **Wake-up notification demo:** a Protect-screen button requests notification permission when needed and immediately posts a sample morning check-in; automatic wake detection remains a future integration.
-- **Intentional extension:** leaving is immediate; adding five more swipes requires an eight-second research note.
-- **On-device insights:** daily swipes, pauses, exits, extensions, and a conservative time-protected estimate.
-- **Protected-day streaks:** one intentional feed exit protects the day; streaks and personal bests stay on-device and can be shared through Android's share sheet.
-- **Research library:** concise, careful summaries linking to the underlying PubMed records.
-- **Local-only:** no account, analytics SDK, network permission, or backend.
+- One screen: your daily streak and one **Block Reels** on/off toggle.
+- Block Reels on blocks detected Instagram Reels all day. There are no scroll allowances or extensions.
+- Block Reels off stops blocking and disables Block Short's accessibility service. Turning it back on requires enabling the service in Android settings again; the toggle opens a short disclosure first.
+- Choose **Instagram home** or **Phone home** from a blocked Reel to count the day toward your streak. Multiple exits on the same day count once. Missing a day resets the current streak.
+- Instagram only. Home, Stories, messages, Notifications, and Profile are intended to stay available.
+- No accounts, network permission, analytics, notifications, schedules, research screens, or extra settings.
 
-## Run it
+Existing streaks and the saved protection on/off preference are retained. Legacy mode, schedule, app-selection, and session-limit preferences are ignored.
 
-Requirements: Android Studio Quail or newer, JDK 17, and Android SDK 37.
+## Run
 
-1. Open this directory in Android Studio and let Gradle sync.
-2. Run the `app` configuration on a physical device or emulator running Android 8.0+.
-3. Read the in-app disclosure, tap **I understand — open settings**, and enable **Block Short protection**.
-4. Open a supported short-form feed and test Hard or Soft Mode.
+Use Android Studio, JDK 17, and Android SDK 37. Open this directory, sync Gradle, and run the `app` configuration on Android 8.0 or newer. Turn on Block Reels, read the disclosure, and enable **Block Short protection** in Android accessibility settings.
 
-The project uses Android Gradle Plugin 9.3.0, Gradle 9.5.0, built-in Kotlin, and the Compose 2026.06 BOM.
+## Detection and intervention
 
-## How feed detection works
+The service receives events for `com.instagram.android` only. It checks foreground window identity to prevent stale events or overlays from affecting other apps. Only Instagram content is scanned for Reels evidence.
 
-The Accessibility Service is package-scoped to Instagram, YouTube, and both global TikTok package IDs. Block Short looks for combinations of visible accessibility labels (for example, a short-form section label plus feed controls). A lone **Reels** or **Shorts** navigation label is intentionally insufficient. This reduces false positives and keeps messaging usable.
+The detector uses visible viewer containers, selected Reels tabs with playback controls, or a Reels header above a vertical action rail. Visible Home, Stories, inbox, Notifications, and Profile markers veto detection. Hidden nodes and shared video-player components are insufficient.
 
-When a limit is reached, Block Short first exits the detected feed so video and audio stop, then shows the intervention. The intervention is owned by that social app and is removed if the user leaves the app, disables protection, or removes the app from protection.
+Fresh observations confirm entry at least 120 ms apart, with an additional 250 ms foreground Instagram scan. Briefly missing controls do not cancel confirmation; known permitted screens, app switches, or more than one second without positive evidence reset it. Idle scans run once per second.
 
-Social apps change their accessibility trees frequently. Before release, validate the detector against current app versions and add localized label sets. The detector logic is isolated in `ShortFormDetector.kt` and has pure unit tests.
+Before showing the two-exit blocking screen, the service sends Back to leave Reels and stop playback. The overlay belongs to Instagram and is dismissed when Instagram leaves the foreground or protection is disabled. Delayed home navigation verifies that Instagram is still foreground before acting. Actions remain scrollable on compact displays and at large font sizes.
 
-## Important release notes
+## Validation
 
-- Accessibility access is sensitive. The onboarding copy must remain explicit about what is inspected and what is not stored.
-- Some banking and UPI apps refuse to run while *any* accessibility service is enabled, regardless of package scoping. Block Short provides an in-app action that calls Android's `disableSelf()` API and opens Accessibility settings; users must explicitly re-enable protection after banking. An app-level pause cannot satisfy finance apps that inspect the system accessibility setting.
-- Google Play requires a declaration and prominent disclosure for non-accessibility-tool uses of `AccessibilityService`. Review the current policy before publishing.
-- Block Short is a wellbeing product, not a medical device. Research copy distinguishes association from causation and avoids clinical claims.
-- V0's “time protected” number is an estimate, not measured sleep impact.
+Run `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease assembleDebugAndroidTest`.
 
-## Research used in the app
+With an emulator or test device connected, run `./gradlew.bat connectedDebugAndroidTest` for accessibility-node filtering, cross-app root rejection, compact/large-font overlay layouts, exit taps, the minimal screen, and preference compatibility.
 
-- [Digital media use and sleep in late adolescence and young adulthood](https://pubmed.ncbi.nlm.nih.gov/36638702/)
-- [Doomscrolling Scale and its associations](https://pubmed.ncbi.nlm.nih.gov/36275044/)
-- [Pre-sleep social media use: a laboratory study](https://pubmed.ncbi.nlm.nih.gov/34627122/)
-- [Short-video intervention and sleep quality: randomized trial](https://pubmed.ncbi.nlm.nih.gov/41743515/)
-- [Social media use and sleep quality: review of reviews](https://pubmed.ncbi.nlm.nih.gov/41597059/)
+On a physical phone, verify Reels entry from its tab and shared posts, playback stopping, both exit buttons, and overlay dismissal when switching apps. Home scrolling, multiple Stories including shared Reels, inbox, Notifications, and Profile should remain uninterrupted. Check Block Reels off, re-enabling through Android settings, streak persistence, and that YouTube/TikTok receive no intervention. Instrumentation tests do not reproduce Instagram's private accessibility tree or verify its audio behavior.
+
+Some banking and UPI apps reject enabled accessibility services. Turning Block Reels off requests Android to disable Block Short's service; other enabled services may still affect those apps.

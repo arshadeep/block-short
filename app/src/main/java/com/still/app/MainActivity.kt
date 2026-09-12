@@ -46,9 +46,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 StillApp(
-                    refreshKey = refreshKey,
-                    initialConfig = repository.loadConfig(),
-                    stats = repository.loadTodayStats(),
+                    initialConfig = remember(refreshKey) { repository.loadConfig() },
+                    stats = remember(refreshKey) { repository.loadTodayStats() },
                     serviceEnabled = isStillServiceEnabled(this),
                     onConfigChanged = {
                         repository.saveConfig(it)
